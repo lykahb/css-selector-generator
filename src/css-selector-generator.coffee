@@ -97,29 +97,24 @@ class CssSelectorGenerator
           return ":nth-child(#{counter})" if sibling is element
     null
 
-  testSelector: (element, selector) ->
-    is_unique = false
+
+  testSelector: (element, selector, inDocument) ->
     if selector? and selector isnt ''
-      result = element.ownerDocument.querySelectorAll selector
-      is_unique = true if result.length is 1 and result[0] is element
-    is_unique
-
-
-  testUniqueness: (element, selector) ->
-    parent = element.parentNode
-    found_elements = parent.querySelectorAll selector
-    found_elements.length is 1 and found_elements[0] is element
+      root = if inDocument then element.ownerDocument else element.parentNode
+      found_elements = root.querySelectorAll selector
+      return found_elements.length is 1 and found_elements[0] is element
+    false
 
 
   # helper function that tests all combinations for uniqueness
   testCombinations: (element, items, tag) ->
     for item in @getCombinations items
-      return item if @testUniqueness element, item
+      return item if @testSelector element, item
 
     # if tag selector is enabled, try attaching it
     if tag?
       for item in (items.map (item) -> tag + item)
-        return item if @testUniqueness element, item
+        return item if @testSelector element, item
 
     return null
 
@@ -136,7 +131,7 @@ class CssSelectorGenerator
 
         # tag selector (should return unique for BODY)
         when 'tag'
-          selector = tag_selector if tag_selector && @testUniqueness element, tag_selector
+          selector = tag_selector if tag_selector && @testSelector element, tag_selector
 
         # class selector
         when 'class'
@@ -168,7 +163,7 @@ class CssSelectorGenerator
       if selector?
         selectors.unshift selector
         result = selectors.join ' > '
-        return result if @testSelector element, result
+        return result if @testSelector element, result, true
 
     return null
 
