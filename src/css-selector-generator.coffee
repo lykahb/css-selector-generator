@@ -3,6 +3,7 @@ class CssSelectorGenerator
   default_options:
     # choose from 'tag', 'id', 'class', 'nthchild', 'attribute'
     selectors: ['id', 'class', 'tag', 'nthchild']
+    combinationsLimit: 20
 
   constructor: (options = {}) ->
     @options = {}
@@ -106,17 +107,15 @@ class CssSelectorGenerator
     false
 
 
-  # helper function that tests all combinations for uniqueness
+  # helper function that looks for the first unique combination
   testCombinations: (element, items, tag) ->
-    for item in @getCombinations items
-      return item if @testSelector element, item
+    test = (combinations) =>
+      selector = combinations.join('')
+      # if tag selector is enabled, try attaching it
+      selector = tag + selector if tag?
+      selector if @testSelector element, selector
 
-    # if tag selector is enabled, try attaching it
-    if tag?
-      for item in (items.map (item) -> tag + item)
-        return item if @testSelector element, item
-
-    return null
+    @filterCombinations items, test
 
 
   getUniqueSelector: (element) ->
@@ -168,24 +167,30 @@ class CssSelectorGenerator
     return null
 
 
-  getCombinations: (items = []) ->
-    # first item must be empty (seed), it will be removed later
-    result = [[]]
+  filterCombinations: (items = [], test) ->
+    # there are 2^items.length combinations, it returns the first matching
+    advance = (indexes) ->
+      for i in [indexes.length-1..0]
+        maxValue = items.length - (indexes.length - i)
+        if indexes[i] < maxValue  # is incrementable
+          startIndex = i
+          break
+      return false if !startIndex?
+      startValue = indexes[startIndex]
+      for i in [startIndex..indexes.length-1]
+        indexes[i] = ++startValue
+      return true
 
-    for i in [0..items.length - 1]
-      for j in [0..result.length - 1]
-        result.push result[j].concat items[i]
-
-    # remove first empty item (seed)
-    result.shift()
-
-    # sort results by length, we want the shortest selectors to win
-    result = result.sort (a, b) -> a.length - b.length
-
-    # collapse combinations and add prefix
-    result = result.map (item) -> item.join ''
-
-    result
+    counter = 0
+    length = 1  # array range for [1..0] would not be empty
+    while length <= items.length
+      indexes = [0..length-1]
+      loop
+        result = test(indexes.map (i) -> items[i])
+        counter++
+        return result if result || counter >= @options.combinationsLimit
+        break if !advance(indexes)
+      length++
 
 
 if define?.amd
