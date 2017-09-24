@@ -113,9 +113,9 @@ class CssSelectorGenerator
       selector = combinations.join('')
       # if tag selector is enabled, try attaching it
       selector = tag + selector if tag?
-      selector if @testSelector element, selector
+      combinations if @testSelector element, selector
 
-    @filterCombinations items, test
+    @findCombination items, test
 
 
   getUniqueSelector: (element) ->
@@ -126,48 +126,61 @@ class CssSelectorGenerator
 
         # ID selector (no need to check for uniqueness)
         when 'id'
-          selector = @getIdSelector element
+          id_selector = @getIdSelector element
+          selector = {'id': id_selector} if id_selector
 
         # tag selector (should return unique for BODY)
         when 'tag'
-          selector = tag_selector if tag_selector && @testSelector element, tag_selector
+          selector = {'tag': tag_selector} if tag_selector && @testSelector element, tag_selector
 
         # class selector
         when 'class'
           selectors = @getClassSelectors element
           if selectors? and selectors.length isnt 0
-            selector = @testCombinations element, selectors, tag_selector
+            combos = @testCombinations element, selectors, tag_selector
+            selector = {'class': combos, 'tag': tag_selector} if combos
 
         # attribute selector
         when 'attribute'
           selectors = @getAttributeSelectors element
           if selectors? and selectors.length isnt 0
-            selector = @testCombinations element, selectors, tag_selector
+            combos = @testCombinations element, selectors, tag_selector
+            selector = {'attribute': combos, 'tag': tag_selector} if combos
 
         # if anything else fails, return n-th child selector
         when 'nthchild'
-          selector = @getNthChildSelector element
+          selector = {'nthchild': @getNthChildSelector element}
 
       return selector if selector
 
-    return '*'
+    return {'tag': '*'}
 
 
   getSelector: (element) ->
+    @getSelectorObjects(element).selector
+
+
+  getSelectorObjects: (element) ->
     selectors = []
+    result = ''
 
     parents = @getParents element
     for item in parents
-      selector = @getUniqueSelector item
-      if selector?
-        selectors.unshift selector
-        result = selectors.join ' > '
-        return result if @testSelector element, result, true
+      selector = @getUniqueSelector(item)
+      selectors.unshift selector
+      result = @stringifySelectorObject(selector) + (if result then (' > ' + result) else '')
+      return {selector: selector, selectors: selectors, element: item} if @testSelector element, result, true
 
-    return null
+    return {}
 
 
-  filterCombinations: (items = [], test) ->
+  stringifySelectorObject: (selector) ->
+    clazz = selector.class && selector.class.join('')
+    attribute = selector.attribute && selector.attribute.join('')
+    return [selector.tag, selector.id, clazz, attribute, selector.nthchild].map((s) -> s || '').join('')
+
+
+  findCombination: (items = [], test) ->
     # there are 2^items.length combinations, it returns the first matching
     advance = (indexes) ->
       for i in [indexes.length-1..0]
